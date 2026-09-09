@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import ssl
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 
@@ -14,6 +14,7 @@ class Config:
     threads: int = 40
     timeout: float = 10.0
     ports: str = "top100"          # top100 | all | custom spec "22,80,443,8000-8100"
+    dns_resolve: bool = True
     active_subs: bool = True
     passive_subs: bool = True
     port_scan: bool = True
@@ -55,4 +56,4 @@ TOP_100_PORTS = [
     6379, 6443, 6667, 7001, 7077, 8000, 8008, 8009, 8010, 8020, 8042, 8080, 8081, 8088, 8090,
     8161, 8181, 8443, 8500, 8765, 8888, 9000, 9080, 9090, 9092, 9200, 9300, 9418, 9600, 9999,
     11211, 15672, 27017, 28017, 50000, 50030, 50070, 61616,
-  ]
+]
