@@ -2,7 +2,6 @@
 from rich import box
 from rich.console import Console, Group
 from rich.panel import Panel
-from rich.table import Table
 from rich.text import Text
 
 from . import __version__
@@ -25,7 +24,3 @@ def render(console: Console) -> None:
         Text("dns  •  subdomains  •  ports  •  dirs  •  fingerprint", style="grey58", justify="center"),
     )
     console.print(Panel(body, border_style="orange3", box=box.DOUBLE, padding=(0, 4)))
-
-
-def console_only() -> str:
-    return f"Reconfox v{__version__} — by {CREATORS}"
