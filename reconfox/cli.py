@@ -36,10 +36,10 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("-p", "--ports", default="top100")
     s.add_argument("-t", "--threads", type=int, default=40)
     s.add_argument("--timeout", type=float, default=10.0)
+    s.add_argument("--no-dns", action="store_true")
     s.add_argument("--no-ports", action="store_true")
     s.add_argument("--no-dirs", action="store_true")
     s.add_argument("--no-fingerprint", action="store_true")
-    s.add_argument("--no-dns", action="store_true")
     s.add_argument("-o", "--output", default="reconfox_results.json")
     s.add_argument("--html", help="also generate an HTML report at this path")
     s.add_argument("--no-tui", action="store_true")
@@ -61,6 +61,7 @@ def cmd_scan(args) -> int:
         threads=args.threads,
         timeout=args.timeout,
         ports=args.ports,
+        dns_resolve=not args.no_dns,
         passive_subs=args.subs in ("passive", "both"),
         active_subs=args.subs in ("active", "both"),
         port_scan=not args.no_ports,
