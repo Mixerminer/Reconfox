@@ -27,6 +27,7 @@ class DNSResolverModule:
         self.resolver.lifetime = 8
 
     def run(self) -> None:
+        resolved_ips: list[str] = []
         with ThreadPoolExecutor(max_workers=self.threads) as pool:
             futs = {
                 pool.submit(self._query, self.ctx.domain, rt): rt
@@ -41,11 +42,13 @@ class DNSResolverModule:
                 for r in records:
                     self.ctx.add(Finding(self.name, f"dns_{rt.lower()}", r))
                     if rt == "A":
-                        try:
-                            ipaddress.ip_address(r)
-                            self.ctx.targets.append(Target(host=self.ctx.domain, resolved_ips=records))
-                        except ValueError:
-                            pass
+                        resolved_ips.append(r)
+
+        # exactly one Target per host, IPs deduplicated
+        if resolved_ips:
+            self.ctx.targets.append(
+                Target(host=self.ctx.domain, resolved_ips=sorted(set(resolved_ips)))
+            )
 
     @retry(attempts=3)
     def _query(self, domain: str, rtype: str) -> list[str]:
