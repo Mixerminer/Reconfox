@@ -39,12 +39,10 @@ class Pipeline:
     def _emit(self, stage: str, status: str, msg: str = "") -> None:
         self.events.put({"type": "stage", "stage": stage, "status": status, "msg": msg})
 
-    def _progress(self, stage: str, done: int, total: int) -> None:
-        self.events.put({"type": "progress", "stage": stage, "done": done, "total": total})
-
     # -- pipeline ------------------------------------------------------
     def run(self) -> ScanContext:
         results: list[StageResult] = []
+
         stages = [
             ("dns", self._stage_dns),
             ("passive_subs", self._stage_passive),
@@ -53,9 +51,22 @@ class Pipeline:
             ("dirs", self._stage_dirs),
             ("fingerprint", self._stage_fingerprint),
         ]
+        enabled = {
+            "dns": self.cfg.dns_resolve,
+            "passive_subs": self.cfg.passive_subs,
+            "active_subs": self.cfg.active_subs,
+            "ports": self.cfg.port_scan,
+            "dirs": self.cfg.dir_fuzz,
+            "fingerprint": self.cfg.fingerprint,
+        }
+
         for name, fn in stages:
             if self._stop.is_set():
                 break
+            if not enabled[name]:
+                self._emit(name, "skipped")
+                results.append(StageResult(name, "skipped", 0, 0.0))
+                continue
             t0 = time.time()
             self._emit(name, "running")
             try:
@@ -75,7 +86,7 @@ class Pipeline:
     def stop(self) -> None:
         self._stop.set()
 
-    # -- stages --------------------------------------------------------
+    # -- stages (run only when enabled — gating handled in run()) ------
     def _stage_dns(self) -> int:
         mod = DNSResolverModule(self.ctx)
         n = len(self.ctx.findings)
@@ -83,25 +94,16 @@ class Pipeline:
         return len(self.ctx.findings) - n
 
     def _stage_passive(self) -> int:
-        if not self.cfg.passive_subs:
-            self._emit("passive_subs", "skipped")
-            return 0
         n = len(self.ctx.findings)
         PassiveSubdomainModule(self.ctx).run()
         return len(self.ctx.findings) - n
 
     def _stage_active(self) -> int:
-        if not self.cfg.active_subs:
-            self._emit("active_subs", "skipped")
-            return 0
         n = len(self.ctx.findings)
         ActiveSubdomainModule(self.ctx, self.cfg.wordlist_subs, self.cfg.threads).run()
         return len(self.ctx.findings) - n
 
     def _stage_ports(self) -> int:
-        if not self.cfg.port_scan:
-            self._emit("ports", "skipped")
-            return 0
         # ensure at least the apex host is a target
         if not self.ctx.targets:
             from .models import Target
@@ -111,17 +113,11 @@ class Pipeline:
         return len(self.ctx.findings) - n
 
     def _stage_dirs(self) -> int:
-        if not self.cfg.dir_fuzz:
-            self._emit("dirs", "skipped")
-            return 0
         n = len(self.ctx.findings)
         DirFuzzerModule(self.ctx, self.cfg.wordlist_dirs).run()
         return len(self.ctx.findings) - n
 
     def _stage_fingerprint(self) -> int:
-        if not self.cfg.fingerprint:
-            self._emit("fingerprint", "skipped")
-            return 0
         n = len(self.ctx.findings)
         sub_hosts = [f.value for f in self.ctx.findings if f.type == "subdomain"][:15]
         TechFingerprintModule(self.ctx, [self.ctx.domain] + sub_hosts).run()
