@@ -1,7 +1,7 @@
 """Directory/content fuzzer driven over a shared httpx client."""
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import uuid
 
 import httpx
 
@@ -31,7 +31,7 @@ class DirFuzzerModule:
         try:
             baseline = self._baseline_len(client)
             with ThreadPoolExecutor(max_workers=self.threads) as pool:
-                futs = [pool.submit(self._probe, client, w) for w in self.words]
+                futs = [pool.submit(self._probe, client, w, baseline) for w in self.words]
                 for fut in as_completed(futs):
                     try:
                         res = fut.result()
@@ -47,17 +47,20 @@ class DirFuzzerModule:
             client.close()
 
     def _baseline_len(self, client: httpx.Client) -> int:
-        """Soft-filter: note length of a random 404 to spot soft-404 servers."""
+        """Soft-filter: capture length of a guaranteed-nonexistent path's response."""
         try:
-            r = client.get(f"{self.base}/rfx-{__import__('uuid').uuid4().hex[:10]}")
+            r = client.get(f"{self.base}/rfx-{uuid.uuid4().hex[:10]}")
             return len(r.content)
         except Exception:
             return -1
 
-    def _probe(self, client: httpx.Client, word: str):
+    def _probe(self, client: httpx.Client, word: str, baseline: int):
         try:
             r = client.get(f"{self.base}/{word}")
             if r.status_code in INTERESTING_CODES:
+                # soft-404 filter: 200 with identical length to the random-path baseline
+                if baseline > 0 and r.status_code == 200 and len(r.content) == baseline:
+                    return None
                 return (word, r.status_code, len(r.content))
         except Exception:
             return None
